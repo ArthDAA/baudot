@@ -1,0 +1,1257 @@
+/* Palette reprise de la page web Omnikey (data/src/styles.css, thème sombre).
+   La fenêtre HUD est transparente : seul le panneau est peint. */
+
+:root {
+  --background: oklch(0.16 0.014 260);
+  --foreground: oklch(0.93 0.01 260);
+  --muted: oklch(0.62 0.02 260);
+  --primary: oklch(0.68 0.18 250);
+  --card: oklch(0.19 0.016 260);
+  --border: oklch(0.32 0.02 260);
+
+  /* Couleurs système Apple, utilisées par l'île (.hud-*) — chaque thème a
+     ses propres nuances (systemBlue/systemOrange clair vs sombre). */
+  --island-bg: #000000;
+  --island-border: rgba(255, 255, 255, 0.1);
+  --island-hairline: rgba(255, 255, 255, 0.08);
+  --island-muted: rgba(255, 255, 255, 0.55);
+  /* Pleine opacité de --island-muted — pour le texte "déjà acté" posé
+     directement sur --island-bg (pas sur un remplissage bleu/orange, voir
+     .hud-marks-prefix) : blanc plein en sombre, mais #ffffff figé restait
+     invisible sur l'île blanche du thème clair. */
+  --island-fg: #ffffff;
+  --island-blue: #0a84ff;
+  --island-orange: #ff9f0a;
+}
+
+/* Thème clair : appliqué sur <body> (data-theme réglé par main.tsx d'après
+   la préférence utilisateur, résolue côté Rust — "system" lit le registre
+   Windows AppsUseLightTheme). */
+body[data-theme="light"] {
+  --background: oklch(0.98 0.003 260);
+  --foreground: oklch(0.18 0.01 260);
+  --muted: oklch(0.48 0.02 260);
+  --primary: oklch(0.55 0.19 250);
+  --card: oklch(1 0 0);
+  --border: oklch(0.88 0.006 260);
+
+  --island-bg: #ffffff;
+  --island-border: rgba(0, 0, 0, 0.08);
+  --island-hairline: rgba(0, 0, 0, 0.05);
+  --island-muted: rgba(0, 0, 0, 0.5);
+  --island-fg: #000000;
+  --island-blue: #007aff;
+  --island-orange: #ff9500;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Noto Sans, embarquée (fonts/) plutôt que système : positionnement des
+   marques combinantes sur un cercle pointillé (U+25CC) rigoureusement
+   testé par Google — ce que "Segoe UI"/"Segoe UI Symbol" ne garantissent
+   pas. Sous-ensemble sur-mesure (voir la commande qui a servi à le
+   générer, gardée en note ci-dessous) : seulement les ~315 caractères
+   réellement utilisés par les 38 profils de langue + l'UI, donc 44 Ko +
+   16 Ko au lieu des ~500 Ko d'un Noto Sans complet.
+   Régénérer si de nouveaux caractères apparaissent (nouvelle langue,
+   nouveau texte d'UI) :
+   curl -G "https://fonts.googleapis.com/css2" \
+     -A "Mozilla/5.0 ... Chrome/124.0" \
+     --data-urlencode "family=Noto Sans:wght@400;700" \
+     --data-urlencode "text=<tous les caractères utilisés>" \
+     --data-urlencode "display=swap"
+   (puis télécharger les .woff2 listés dans la réponse) */
+@font-face {
+  font-family: "Noto Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/noto-sans-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/noto-sans-bold.woff2") format("woff2");
+}
+
+/* Une seule police pour toute l'app, déclarée ici et héritée partout. */
+body {
+  font-family: "Noto Sans", "Segoe UI", system-ui, sans-serif;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* ---------- Fenêtre HUD (transparente, click-through) ---------- */
+
+.hud-anchor {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  /* Marge généreuse : l'ombre portée du panneau (blur 80px) a besoin de
+     place pour se dissiper sans se couper net au bord de la fenêtre. */
+  padding-top: 32px;
+  pointer-events: none;
+}
+
+/* Île opaque plutôt que verre translucide : derrière une fenêtre Tauri
+   transparente, backdrop-filter ne floute que le contenu de la page, jamais
+   le bureau réel — un fond translucide y laisse donc passer des pixels nets
+   du bureau. Noir plein + liseré + halo interne reproduisent l'effet sans
+   dépendre d'un flou système (indisponible de toute façon sous Linux).
+   Colonne, pas rangée : le rappel diacritiques (.hud-reminder) vient
+   s'empiler sous le contenu principal (.hud-panel-main) À L'INTÉRIEUR de
+   cette même bulle — un seul élément, jamais deux îles séparées. */
+.hud-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid var(--island-border);
+  background: var(--island-bg);
+  box-shadow:
+    inset 0 1px 0 var(--island-hairline),
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    0 30px 80px -20px rgba(0, 0, 0, 0.6);
+}
+
+/* Ex-contenu direct de .hud-panel avant l'ajout du rappel diacritiques :
+   la rangée (waiting/variants/lang-list) garde son layout d'origine, juste
+   déplacée d'un niveau pour laisser .hud-panel devenir la colonne englobante.
+   justify-content:center ajouté ici : .hud-panel (colonne) étire désormais
+   cette rangée sur toute sa largeur (stretch par défaut) — sans lui dire de
+   centrer SON PROPRE contenu sur cet axe, le texte partait à gauche dès que
+   .hud-reminder, en dessous, est la rangée la plus large des deux. */
+.hud-panel-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- État "waiting" : petite pastille rappelant la langue active ----
+   Orange (systemOrange) pour ce rappel passif, distinct du bleu utilisé
+   pour la sélection active dans l'état "variants". ---- */
+
+.hud-waiting {
+  display: flex;
+  align-items: center;
+  padding: 10px 18px;
+  font-size: 12px;
+  /* 700, pas 600 : seuls 400/700 sont embarqués (voir @font-face plus haut),
+     600 ne correspond à aucune des deux graisses chargées. */
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--island-orange);
+  white-space: nowrap;
+}
+
+/* Langue reléguée au second plan quand le rappel diacritiques est affiché
+   À CÔTÉ d'elle (les deux informations à la fois) — le rappel devient alors
+   la partie utile, la langue n'est plus qu'un repère de contexte. :has()
+   cible .hud-panel-main seulement quand .hud-reminder existe réellement
+   comme frère suivant dans le DOM (donc jamais quand la langue est seule,
+   cas déjà validé tel quel). Redondant avec le réglage
+   languageLabelWithAccents (qui la masque complètement) — deux niveaux :
+   la masquer, ou juste la faire reculer visuellement. */
+.hud-panel-main:has(+ .hud-reminder) .hud-waiting {
+  padding: 7px 16px;
+  font-size: 10px;
+}
+
+/* ---- État "language" (AltGr+Espace) : la bulle "waiting" se déroule en
+   liste verticale de langues — même orange que .hud-waiting (c'est
+   littéralement la même information, juste dépliée), pas le bleu réservé à
+   la sélection de variante active. Fenêtre HUD en ignore_cursor_events (main.rs) :
+   jamais de scroll souris possible, donc scrollbar masquée — c'est
+   AccentHUD.tsx (scrollIntoView) qui garde la ligne active dans le cadre. */
+.hud-lang-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 6px;
+  gap: 2px;
+  scrollbar-width: none;
+}
+
+.hud-lang-list::-webkit-scrollbar {
+  display: none;
+}
+
+.hud-lang-row {
+  padding: 8px 16px;
+  border-radius: 0.9rem;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--island-muted);
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.hud-lang-row-active {
+  background: var(--island-orange);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* ---- État "variants" : rangée de lettres, seule l'active est mise en avant ---- */
+
+.hud-variants {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+}
+
+.hud-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  font-size: 30px;
+  font-weight: 500;
+  color: var(--island-muted);
+}
+
+.hud-tile-char {
+  position: relative;
+  z-index: 1;
+  transition: color 0.15s ease;
+}
+
+.hud-tile-active .hud-tile-char {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Ancre du surlignage : position/taille (layoutId partagé), le halo coloré
+   et le découpage aux coins arrondis des deux remplissages superposés
+   (.hud-highlight-fill-*) qui, eux, se chargent du fondu bleu<->orange en
+   croisant juste leur opacité — voir le composant Highlight. */
+.hud-highlight-anchor {
+  position: absolute;
+  inset: 3px;
+  z-index: 0;
+  border-radius: 0.9rem;
+  overflow: hidden;
+}
+
+.hud-highlight-glow-blue {
+  box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--island-blue) 60%, transparent);
+}
+
+.hud-highlight-glow-orange {
+  box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--island-orange) 60%, transparent);
+}
+
+.hud-highlight-fill {
+  position: absolute;
+  inset: 0;
+}
+
+.hud-highlight-fill-blue {
+  background: var(--island-blue);
+}
+
+.hud-highlight-fill-orange {
+  background: var(--island-orange);
+}
+
+/* ---- Mode Dead Keys : diacritiques déjà empilées, persistantes à gauche
+   qu'on soit en train de cycler (.hud-variants) ou en attente (placeholder
+   "?") — voir AccentHUD.tsx, hissées hors de l'AnimatePresence pour ne
+   jamais se redémonter/refondre, juste glisser latéralement (`layout`). ---- */
+
+.hud-marks-prefix {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 10px 10px;
+}
+
+/* Pleine opacité (pas le gris des tuiles inactives) : ce n'est pas "en
+   attente de sélection" comme les autres candidats, c'est déjà acté — juste
+   pas de bleu, réservé à ce qui est actif ailleurs dans le HUD. --island-fg
+   plutôt que #ffffff figé : posé directement sur --island-bg (pas sur un
+   remplissage bleu/orange, voir .hud-tile-active), un blanc fixe devenait
+   invisible sur l'île blanche du thème clair. */
+.hud-marks-prefix .hud-tile-char,
+.hud-marks-prefix .hud-armed-sep {
+  color: var(--island-fg);
+}
+
+.hud-armed-sep {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--island-muted);
+}
+
+/* ---- Rappel des diacritiques : bande discrète empilée SOUS le contenu
+   principal, dans LA MÊME bulle que .hud-panel-main (aucun liseré/fond/
+   bordure à elle — un seul élément continu, pas une 2e île visuellement
+   détachée) — toujours visible tant que le HUD est actif (sauf pendant la
+   sélection de langue, voir AccentHUD.tsx) et que la config chargée
+   comporte au moins une touche à diacritique (HudApp.tsx,
+   buildReminderKeys) — désactivable dans Paramètres. Orange systemOrange,
+   même teinte que .hud-waiting/.hud-lang-row-active : c'est le même genre
+   de rappel passif, pas une sélection active (réservée au bleu). Taille
+   volontairement plus petite que .hud-tile : ce n'est pas une cible, juste
+   un pense-bête. ---- */
+.hud-reminder {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  /* Pas de padding-top par défaut : le bas de .hud-waiting (10px) suffit à
+     écarter proprement les deux rangées quand la pastille de langue est
+     visible — en ajouter un ici en plus créait un double espacement. */
+  padding: 0 14px 10px;
+}
+
+/* ...mais quand la pastille de langue est masquée (réglage
+   languageLabelWithAccents à false, AccentHUD.tsx), .hud-panel-main ne
+   rend plus rien : :empty le détecte (aucun enfant DOM, y compris quand
+   les deux AnimatePresence internes retournent null) — le rappel devient
+   alors le seul contenu de la bulle et doit porter SON PROPRE padding-top,
+   sinon il colle au bord supérieur arrondi (haut 0 vs bas 10px). Même
+   valeur que le bas, pour rester symétrique dans ce cas précis. */
+.hud-panel-main:empty + .hud-reminder {
+  padding-top: 10px;
+}
+
+/* Diacritiques seules (pas de pastille de langue à côté) : +50% par rapport
+   à la taille de base (10/15 → 15/22.5) — même sélecteur :empty que
+   ci-dessus, elles n'ont alors plus besoin de rester en retrait puisqu'il
+   n'y a rien à distinguer d'un contenu "principal" concurrent. La taille de
+   base (10/15) elle-même ne bouge pas : c'est celle utilisée pendant le
+   cyclage d'une variante (.hud-panel-main non vide, ce sélecteur ne
+   s'applique donc pas), qui doit rester identique à aujourd'hui. */
+.hud-panel-main:empty + .hud-reminder .hud-reminder-label {
+  font-size: 15px;
+}
+
+.hud-panel-main:empty + .hud-reminder .hud-reminder-glyph {
+  font-size: 22.5px;
+}
+
+.hud-reminder-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.hud-reminder-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--island-orange);
+}
+
+.hud-reminder-glyph {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--island-orange);
+}
+
+/* ---------- Fenêtre Paramètres (opaque) ---------- */
+
+body[data-view="settings"] {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px 22px 14px;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.settings-header h1 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--foreground), color-mix(in oklab, var(--foreground) 55%, transparent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.settings-error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid oklch(0.55 0.19 25 / 0.5);
+  background: oklch(0.3 0.09 25 / 0.35);
+  color: oklch(0.8 0.1 25);
+  font-size: 13px;
+}
+
+/* ---- LanguageBank.tsx : à gauche le catalogue complet (liste verticale,
+   même gabarit que l'ancien .profile-item), à droite le cycle AltGr+Espace
+   curé — l'ordre des lignes y fixe l'ordre du cycle. Glisser une ligne de
+   gauche vers la droite l'ajoute ; un simple clic (sans glisser) à gauche
+   charge la langue tout de suite, comme l'ancienne liste "Charger une
+   langue" qu'elle remplace ; cliquer une ligne à droite la retire. ---- */
+/* position:relative sur .settings-row lui-même (pas ajouté à la règle
+   partagée) : ancre .section-resize-handle, voir .bank-row plus bas. */
+.lang-bank-row {
+  position: relative;
+}
+
+.lang-bank-columns {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.lang-bank-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Ancre .section-col-resize-handle (largeur de la colonne "Toutes les
+   langues", voir allColWidth dans LanguageBank.tsx) — seule la colonne de
+   droite le porte, la gauche reste au gabarit width:100%/flex fixé en style
+   inline. */
+.lang-bank-col-cycle {
+  position: relative;
+}
+
+.lang-bank-col-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lang-bank-all,
+.lang-bank-selected {
+  flex: 1;
+  min-width: 0;
+  /* max-height : voir style inline (bankHeight, LanguageBank.tsx) — tirable
+     depuis .section-resize-handle, valeur par défaut identique (220px). */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.lang-bank-selected {
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+/* Survolée pendant un drag venu de .lang-bank-all — seul retour visuel
+   possible ici : contrairement au clavier (tileDrag.ts), il n'y a qu'une
+   seule cible possible, pas de géométrie à distinguer. */
+.lang-bank-selected-over {
+  border-color: var(--island-orange);
+  background: color-mix(in oklab, var(--island-orange) 10%, transparent);
+}
+
+.lang-bank-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 4px;
+}
+
+/* Même registre que l'ancien .profile-item : carte neutre, pas une puce
+   colorée — c'est justement ce que le retour utilisateur demandait de
+   retrouver. */
+.lang-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+/* Déjà dans le cycle (colonne de gauche) : rappel passif seulement, la
+   vraie confirmation vit dans la ligne pleine à droite. */
+.lang-list-item-picked {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* Colonne de droite : confirmée dans le cycle, teintée pour se distinguer
+   du gris neutre de gauche. */
+.lang-list-item-active {
+  cursor: pointer;
+  border-color: color-mix(in oklab, var(--island-orange) 55%, var(--border));
+  background: color-mix(in oklab, var(--island-orange) 12%, var(--card));
+  color: var(--island-orange);
+  font-weight: 600;
+}
+
+.lang-chip-index {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--island-orange);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.settings-row {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.settings-label {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.theme-switch {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--background);
+  border: 1px solid var(--border);
+}
+
+.theme-option {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.1s ease-out;
+}
+
+.theme-option:hover {
+  color: var(--foreground);
+}
+
+.theme-option:active {
+  transform: scale(0.96);
+}
+
+.theme-option-active {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.switch-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.switch-label input {
+  accent-color: var(--primary);
+  width: 16px;
+  height: 16px;
+}
+
+/* Sous-option d'un réglage parent (ex. le nom de langue n'a de sens que si
+   le rappel diacritiques lui-même est actif) — légèrement en retrait, grisée
+   quand la case parente correspondante est décochée (voir `disabled` sur
+   l'input, SettingsApp.tsx). */
+.switch-label-sub {
+  margin-top: 8px;
+  margin-left: 26px;
+}
+
+.switch-label-sub:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- Clavier visuel (KeyboardEditor.tsx) ---------- */
+
+.kbd-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: none;
+}
+
+.kbd-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  flex: none;
+  /* Le clavier remplit toute la largeur dispo (kbdScale, KeyboardEditor.tsx)
+     — sans marge, ça le collait aux bords et sa taille devenait excessive.
+     kbdAvailWidth mesure .kbd-rows-viewport (à l'intérieur de ce padding),
+     donc la marge est automatiquement déduite avant tout calcul de zoom. */
+  padding: 1.5cm;
+  overflow: visible;
+}
+
+/* Largeur réellement dispo pour le clavier (fenêtre Paramètres
+   redimensionnable) — ResizeObserver dessus dans KeyboardEditor.tsx, qui
+   calcule kbdScale (largeur dispo / largeur naturelle) et fixe explicitement
+   la hauteur de ce conteneur (NATURAL_KBD_HEIGHT * kbdScale, en style
+   inline) pour réserver exactement l'espace de mise en page qu'occupera
+   .kbd-rows une fois transformé — indispensable avec transform:scale, qui
+   (contrairement à zoom) ne touche jamais à la taille de mise en page,
+   seulement au rendu visuel : sans cette réservation manuelle, un clavier
+   agrandi aurait débordé par-dessus la section suivante au lieu de la
+   repousser. transform plutôt que zoom : zoom déclenchait des artefacts de
+   peinture (contenu figé/dédoublé) une fois recalculé en direct par le
+   ResizeObserver, pas transform (composité GPU, jamais de re-mise en page).
+   Jamais overflow:hidden ici : les bulles de prévisualisation (.kbd-popup)
+   sont des descendantes de ce conteneur et débordent volontairement de leur
+   touche (au-dessus, sur les côtés). */
+.kbd-rows-viewport {
+  width: 100%;
+  overflow: visible;
+  display: flex;
+  justify-content: center;
+}
+
+/* Largeur fixée en style inline (NATURAL_KBD_WIDTH, KeyboardEditor.tsx) :
+   transform:scale a besoin d'une taille de mise en page STABLE à l'échelle 1
+   pour que transform-origin:top center centre correctement le résultat,
+   quel que soit kbdScale. */
+.kbd-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+}
+
+.kbd-row {
+  display: flex;
+  gap: 6px;
+}
+
+.kbd-key-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* La "zone d'influence" touche+bulle+écart n'est plus gérée en CSS (un pont
+   invisible à largeur fixe devinée ne marchait pas de façon fiable) — voir
+   handleHoverMove dans KeyboardEditor.tsx, qui mesure les rectangles réels. */
+
+.kbd-key {
+  width: 100%;
+  /* Doit rester synchronisé avec KEY_HEIGHT_PX (KeyboardEditor.tsx), utilisé
+     pour calculer NATURAL_KBD_HEIGHT. */
+  height: 34px;
+  border-radius: 7px;
+  /* Un peu plus marquée que --border seul : les touches réelles (utiles)
+     doivent se distinguer nettement des touches décoratives, encore plus
+     effacées ci-dessous (.kbd-key-ghost). */
+  border: 1px solid color-mix(in oklab, var(--foreground) 15%, var(--border));
+  background: var(--card);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.1s ease-out;
+}
+
+.kbd-key:active {
+  transform: scale(0.96);
+}
+
+.kbd-key-active {
+  color: var(--foreground);
+  border-color: color-mix(in oklab, var(--primary) 50%, var(--border));
+}
+
+.kbd-key-selected {
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 14%, var(--card));
+  color: var(--foreground);
+  z-index: 25;
+}
+
+/* Touches décoratives (Tab, Verr. Maj., Espace...) : jamais adressables par
+   le moteur (voir renderGhostKey, KeyboardEditor.tsx) — juste là pour que le
+   clavier ait l'air d'un clavier, donc nettement effacées et sans le moindre
+   retour au survol/clic (button disabled, cursor par défaut plutôt que
+   "interdit"). */
+.kbd-key-ghost {
+  opacity: 0.32;
+  font-size: 11px;
+  border-color: var(--border);
+  border-style: dashed;
+  cursor: default;
+}
+
+.kbd-key-ghost:active {
+  transform: none;
+}
+
+/* Libellé à glyphe isolé (⌫ ⇪ ↵) plutôt qu'un mot (Tab, Ctrl, Alt) :
+   agrandi, sinon perdu au milieu d'une touche large. */
+.kbd-key-ghost-icon {
+  font-size: 16px;
+}
+
+/* Bascule min/maj greffée sur Verr. Maj. (renderToggleKey,
+   KeyboardEditor.tsx) — remplace l'ancien bouton "min/maj" hors-clavier :
+   pleine opacité (contrairement aux touches décoratives), volontairement
+   graphique (↑ relâchée / ↓ enfoncée) plutôt qu'un mot, avec une fausse LED
+   comme sur une vraie touche Verr. Maj. */
+.kbd-key-toggle {
+  position: relative;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.kbd-key-toggle:hover {
+  border-color: color-mix(in oklab, var(--primary) 60%, transparent);
+  color: var(--foreground);
+}
+
+.kbd-key-toggle-active {
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 18%, var(--card));
+  color: var(--primary);
+}
+
+.kbd-key-toggle-led {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.5;
+  transition: background 0.15s, opacity 0.15s, box-shadow 0.15s;
+}
+
+.kbd-key-toggle-active .kbd-key-toggle-led {
+  background: var(--primary);
+  opacity: 1;
+  box-shadow: 0 0 4px var(--primary);
+}
+
+/* Petite bulle façon HUD, ancrée juste au-dessus de la touche survolée —
+   mêmes teintes --island-* que le vrai HUD (styles.css:14-19), pas le style
+   carte de la Companion App. Jamais collante : montée/démontée uniquement
+   par isSelected && has côté React, sur mouseenter/mouseleave du wrapper. */
+.kbd-popup {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  /* Le centrage (-50%) est porté par les props x de Framer Motion, pas ici :
+     motion.div écrit son propre `transform` inline à chaque frame de
+     l'animation, ce qui écraserait une règle CSS sur la même propriété. */
+  z-index: 30;
+  width: max-content;
+  max-width: 260px;
+  padding: 8px;
+  border-radius: 1.1rem;
+  border: 1px solid var(--island-border);
+  background: var(--island-bg);
+  box-shadow:
+    inset 0 1px 0 var(--island-hairline),
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    0 20px 50px -15px rgba(0, 0, 0, 0.6);
+}
+
+.kbd-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.kbd-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 0.85rem;
+  background: transparent;
+  cursor: grab;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.kbd-tile:active {
+  cursor: grabbing;
+}
+
+.kbd-tile-char {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--island-muted);
+  transition: color 0.1s;
+}
+
+/* Le carré coloré du vrai HUD (Highlight component, AccentHUD.tsx) suit ce
+   qu'on survole — exactement le rôle qu'il joue à l'exécution (le candidat
+   actuellement actif dans le cycle), pas une tuile figée par convention.
+   Bleu = lettre normale, orange = marque combinante (dead key), sur chaque
+   tuile selon son propre glyphe. Transparent tant qu'on ne la survole pas. */
+.kbd-tile-blue,
+.kbd-tile-orange {
+  border-radius: 0.75rem;
+}
+
+.kbd-tile-blue:hover {
+  background: var(--island-blue);
+}
+
+.kbd-tile-orange:hover {
+  background: var(--island-orange);
+}
+
+.kbd-tile-blue:hover .kbd-tile-char,
+.kbd-tile-orange:hover .kbd-tile-char {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Le proxy de drag (voir l'architecture en tête de KeyboardEditor.tsx) :
+   porté hors de toute bulle via un portail, c'est LA représentation visuelle
+   de la tuile "en vol" — donc exactement le même rendu qu'une vraie tuile
+   active, juste un léger relief en plus pour signaler qu'elle est saisie.
+   "Actif" en permanence, pas via :hover : son pointer-events:none le rend
+   invisible au survol (le curseur "voit" ce qu'il y a en dessous), donc
+   .kbd-tile-blue/orange:hover ne se déclencherait jamais dessus — c'est
+   justement la tuile tenue, elle doit paraître active sans condition. */
+.kbd-tile-proxy {
+  box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.55);
+  cursor: grabbing;
+  pointer-events: none;
+  z-index: 1000;
+  will-change: transform;
+}
+
+.kbd-tile-proxy.kbd-tile-blue {
+  background: var(--island-blue);
+}
+
+.kbd-tile-proxy.kbd-tile-orange {
+  background: var(--island-orange);
+}
+
+.kbd-tile-proxy .kbd-tile-char {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.kbd-tile-proxy-return {
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.25, 1.15);
+}
+
+/* La vraie tuile qui vient d'atterrir (KeyboardEditor.tsx, justLanded) :
+   même traitement forcé que le proxy — bleu/orange plein le temps de la
+   transition partagée (layoutId), pas seulement au survol — puisqu'elle en
+   prend visuellement le relais dès qu'il disparaît. */
+.kbd-tile-landing.kbd-tile-blue {
+  background: var(--island-blue);
+}
+
+.kbd-tile-landing.kbd-tile-orange {
+  background: var(--island-orange);
+}
+
+.kbd-tile-landing .kbd-tile-char {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Prévisualisation pure de l'index de dépôt (Hold/Drop, jamais d'écriture
+   avant relâchement — voir KeyboardEditor.tsx) : un simple emplacement vide
+   à la place où la tuile atterrirait, jamais une vraie tuile. Invisible —
+   les tuiles réelles s'écartant déjà pour lui faire de la place, ce vide
+   suffit à montrer où ça atterrirait, pas besoin de le dessiner en plus. */
+.kbd-tile-marker {
+  width: 44px;
+  height: 44px;
+}
+
+/* Masquée par défaut, comme demandé : n'apparaît qu'au survol de sa propre
+   tuile, jamais en permanence. */
+.kbd-tile-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--island-muted);
+  color: var(--island-bg);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.kbd-tile:hover .kbd-tile-remove {
+  opacity: 1;
+}
+
+/* Panneau permanent (jamais replié, contrairement à .lang-toggle) : prend
+   toute la place restante en bas de la fenêtre (flex:1), défilement interne
+   propre — appelé à grandir bien au-delà de 36 caractères une fois la table
+   Unicode complète et les cases à cocher de filtre ajoutées. */
+.bank-row {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Zone de saisie du redimensionnement (useResizableHeight.ts) — chevauche la
+   bordure existante (.settings-row{border-top} de la section SUIVANTE), qui
+   reste seule visible : aucun élément graphique ajouté, juste une bande plus
+   large que son unique pixel pour pouvoir l'attraper au pointeur, avec le
+   curseur adapté au survol.
+   Ancrée en BAS de la section qu'elle redimensionne (bottom, pas top) :
+   c'est la ligne sous "Banque de caractères" qui doit agrandir la BDC, pas
+   la ligne au-dessus — sinon chaque barre pilote la section d'après au lieu
+   de celle qu'elle borde visuellement (décalage d'une section observé). */
+.section-resize-handle {
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+/* Même principe que .section-resize-handle, sur l'axe horizontal (curseur
+   ↔) — redimensionne la colonne de GAUCHE d'une section à deux colonnes
+   (.bank-flags/.bank-flags-secondary, CharacterBank.tsx ; la colonne
+   "Toutes les langues", LanguageBank.tsx). Ancrée au bord GAUCHE de la
+   colonne de droite (position:relative posé dessus), qui reste flexible —
+   grandir/rétrécir la gauche pousse ce bord, jamais l'inverse. */
+.section-col-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+/* Deux colonnes : la liste de flags (filtre soustractif, CharacterBank.tsx)
+   à gauche, la grille de caractères à droite — largeur fixe pour la
+   première, le reste pour la seconde. */
+/* Filtre soustractif (CharacterBank.tsx) en bulles pleine largeur plutôt
+   qu'une liste à cocher étroite : ~60 flags (langues, catégories, lettres de
+   base) tiennent bien plus lisiblement en s'enroulant sur plusieurs lignes
+   que dans une colonne de 130px. Hauteur bornée + défilement interne, comme
+   .bank-grid juste en dessous — les deux se partagent la place au lieu que
+   l'un pousse indéfiniment l'autre. */
+/* Colonne latérale (pas pleine largeur) : les bulles isolées (Diacritique,
+   catégories curées, puis les déclencheurs "Alphabet"/"Langues") s'enroulent
+   ensemble. Cliquer un déclencheur ouvre .bank-flags-secondary, une 2e
+   colonne à côté (pas un accordéon déroulé sous le bouton) — bien trop de
+   lettres/langues pour rester lisible en dessous d'un bouton étroit.
+   Défilement propre à chaque colonne, indépendant de .bank-grid. */
+.bank-columns {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.bank-flags {
+  flex: none;
+  /* width/max-height : voir style inline (flagsWidth/bankHeight,
+     CharacterBank.tsx) — tirables depuis .section-col-resize-handle /
+     .section-resize-handle, valeurs par défaut identiques (148px/140px). */
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Bulle déclencheuse ("Alphabet ›"/"Langues ›") : légèrement plus large
+   qu'une bulle de flag normale pour laisser respirer le chevron. */
+.bank-flag-group {
+  flex: 0 0 100%;
+  text-align: left;
+}
+
+/* 2e colonne, n'existe que quand un groupe est ouvert (CharacterBank.tsx,
+   openGroup) — même gabarit que .bank-flags, insérée entre elle et
+   .bank-grid plutôt que de pousser la grille vers le bas. */
+.bank-flags-secondary {
+  flex: none;
+  /* width/max-height : voir style inline (flagsWidth/bankHeight,
+     CharacterBank.tsx). */
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.bank-flag {
+  flex: none;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.1s ease-out;
+}
+
+.bank-flag:hover {
+  border-color: color-mix(in oklab, var(--primary) 60%, transparent);
+  color: var(--foreground);
+}
+
+.bank-flag:active {
+  transform: scale(0.96);
+}
+
+/* Cochée : même langage que .theme-option-active (fond plein, pas juste un
+   contour) — doit se voir au premier coup d'œil dans une rangée de bulles,
+   contrairement à une case à cocher qui portait déjà cette information. */
+.bank-flag-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Hauteur bornée plutôt que flex:1 : dans une colonne flex avec un ancêtre
+   en overflow-y:auto (.settings), flex:1 sur plusieurs niveaux imbriqués ne
+   garantit pas une hauteur réellement contrainte — .bank-grid ne rétrécissait
+   jamais vraiment, débordait de sa rangée et se superposait visuellement à
+   "Charger une langue" en dessous. Même approche que .profile-list
+   (max-height + overflow-y:auto), déjà fiable. */
+/* Enveloppe non coupée (pas d'overflow) de .bank-grid — porte
+   .section-col-resize-handle et le flex:1 de mise en page. Nécessaire :
+   .bank-grid a overflow-y:auto (donc overflow-x calculé en auto lui aussi,
+   règle CSS), qui rognait la poignée dès qu'elle débordait à gauche vers
+   .bank-flags — même défaut de conception que .lang-bank-col-cycle évite en
+   n'ayant jamais d'overflow sur l'élément qui porte la poignée. */
+.bank-grid-col {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.bank-grid {
+  /* max-height : voir style inline (bankHeight, CharacterBank.tsx). */
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.bank-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 14px;
+  cursor: grab;
+  user-select: none;
+  position: relative;
+}
+
+.bank-chip:hover {
+  border-color: color-mix(in oklab, var(--primary) 60%, transparent);
+}
+
+/* Même convention bleu/orange que les tuiles du clavier (.kbd-tile-blue,
+   .kbd-tile-orange, styles.css:568) — ces classes fournissent déjà le fond
+   au survol, réutilisées telles quelles pour que la couleur soit exactement
+   la même partout. Seule la couleur du texte manque : la règle du clavier
+   cible .kbd-tile-char, un span imbriqué que la puce banque n'a pas (son
+   caractère est du texte direct) — donc ciblée ici sur la puce elle-même. */
+.bank-chip.kbd-tile-blue:hover,
+.bank-chip.kbd-tile-orange:hover {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Pendant son propre geste, la puce passe en pointer-events:none (voir
+   CharacterBank.tsx — sinon elle se retrouverait elle-même sous le
+   curseur), ce qui désactive aussi son :hover CSS avec : sans ceci, elle
+   perdrait son bleu/orange pile au moment de la saisir. Même correctif que
+   .kbd-tile-proxy (styles.css:587) — forcer la couleur sans dépendre du
+   survol tant qu'elle est effectivement tenue. */
+.bank-chip.kbd-tile-blue.bank-chip-dragging {
+  background: var(--island-blue);
+}
+
+.bank-chip.kbd-tile-orange.bank-chip-dragging {
+  background: var(--island-orange);
+}
+
+.bank-chip.bank-chip-dragging {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.bank-chip:active {
+  cursor: grabbing;
+}
+
+/* Rappel "déjà en config" (assignments.ts) : bordure pointillée plutôt
+   qu'un remplissage, pour ne jamais se confondre avec le bleu/orange
+   (catégorie du caractère) ni avec bank-chip-dragging (geste en cours) —
+   les trois peuvent cohabiter sans s'écraser. Fond transparent (au repos —
+   le survol/drag reprend la main via les règles :hover/.bank-chip-dragging,
+   plus spécifiques) et bordure épaissie : la longueur des tirets suit
+   grossièrement l'épaisseur du trait, c'est le seul levier qu'offre
+   border-style: dashed sans passer par une image de bordure. */
+.bank-chip-assigned {
+  border-width: 3px;
+  border-style: dashed;
+  background: transparent;
+}
+
+/* Représentation visuelle réelle du drag (CharacterBank.tsx, dragVisual) —
+   portée (createPortal) hors de .bank-grid pour ne jamais être coupée par
+   son overflow-y:auto borné (la puce d'origine, elle, reste invisible tout
+   le geste). position:fixed + left/top posés en style inline (coordonnées
+   dynamiques) ; jamais sous le curseur pour de vrai (pointer-events:none),
+   donc :hover ne se déclenche jamais — couleur forcée comme
+   .kbd-tile-proxy/.bank-chip-dragging. */
+.bank-chip-proxy {
+  z-index: 1000;
+  pointer-events: none;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.bank-chip-proxy.kbd-tile-blue {
+  background: var(--island-blue);
+}
+
+.bank-chip-proxy.kbd-tile-orange {
+  background: var(--island-orange);
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-quit {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, transform 0.1s ease-out;
+}
+
+.btn-quit:active {
+  transform: scale(0.96);
+}
+
+.btn-quit:hover {
+  color: oklch(0.75 0.15 25);
+  border-color: oklch(0.55 0.19 25 / 0.6);
+}
+
+.settings-footer {
+  text-align: center;
+  font-size: 11px;
+  color: color-mix(in oklab, var(--muted) 70%, transparent);
+}
+
+.settings-footer span {
+  font-weight: 600;
+  color: color-mix(in oklab, var(--foreground) 80%, transparent);
+}
+
+.settings-footer-logo {
+  height: 1.3em;
+  width: auto;
+  margin-left: 0.35em;
+  vertical-align: -0.3em;
+  color: color-mix(in oklab, var(--foreground) 80%, transparent);
+}
+

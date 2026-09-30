@@ -1,0 +1,28 @@
+# Sessions Claude Code locales - pas du projet
+.claude/
+
+# Node / frontend
+omnikey-hud/node_modules/
+omnikey-hud/dist/
+
+# Rust / Tauri - build artifacts régénérables (voir README pour rebuild)
+lockfree_core/target/
+omnikey-hud/src-tauri/target/
+core/target/
+input/hid/target/
+inject/windows/target/
+omnikey-hud/src-tauri/gen/
+
+# Ancien moteur compilé (v0.1) : plus embarqué depuis la v0.2, ne doit jamais
+# réapparaître dans le dépôt.
+omnikey-hud/src-tauri/binaries/lockfree_core.exe
+
+# Logs
+*.log
+
+# Divers
+.DS_Store
+Thumbs.db
+
+# Firmware compilé
+firmware/qmk-var/build/

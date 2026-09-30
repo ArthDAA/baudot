@@ -1,0 +1,13 @@
+[package]
+name = "omnikey-hid"
+version = "0.2.0"
+edition = "2021"
+description = "Omnikey v0.2 - lecture du clavier Var par HID brut (D2 B3) et outil de diagnostic"
+
+[dependencies]
+omnikey-core = { path = "../../core" }
+hidapi = "2"
+
+[[bin]]
+name = "baudot-probe"
+path = "src/bin/baudot_probe.rs"

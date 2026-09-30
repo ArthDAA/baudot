@@ -1,0 +1,24 @@
+[package]
+name = "lockfree_core"
+version = "0.1.0"
+edition = "2021"
+
+# Le binaire est compilé directement depuis le main.rs existant à la racine,
+# sans le dupliquer.
+[[bin]]
+name = "lockfree_core"
+path = "../main.rs"
+
+[dependencies.windows]
+version = "0.58"
+features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+]
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true

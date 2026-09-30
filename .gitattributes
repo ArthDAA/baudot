@@ -1,0 +1,12 @@
+* text=auto
+
+# Utilisés sous Linux (conteneur QMK) : les fins de ligne CRLF casseraient
+# le script, le patch et les rules.mk.
+firmware/** text eol=lf
+*.sh text eol=lf
+*.patch text eol=lf
+
+# Binaires
+*.png binary
+*.ico binary
+*.woff2 binary

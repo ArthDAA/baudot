@@ -1,0 +1,16 @@
+[package]
+name = "omnikey-inject-windows"
+version = "0.2.0"
+edition = "2021"
+description = "Omnikey v0.2 - écriture dans l'application active et résolution de disposition sous Windows (D2 B7)"
+
+[dependencies]
+omnikey-core = { path = "../../core" }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_TextServices",
+    "Win32_UI_WindowsAndMessaging",
+] }

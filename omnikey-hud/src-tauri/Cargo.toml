@@ -1,0 +1,36 @@
+[package]
+name = "omnikey-hud"
+version = "0.1.0"
+description = "Baudot Companion App - application des claviers Baudot (by Lockfree)"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = "6"
+# v0.2 "Var" : cœur sans OS, lecture du clavier par HID brut, écriture Windows.
+omnikey-core = { path = "../../core" }
+omnikey-hid = { path = "../../input/hid" }
+omnikey-inject-windows = { path = "../../inject/windows" }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    "Win32_Security",
+    "Win32_System_Registry",
+] }
+
+[profile.release]
+lto = true
+opt-level = "s"

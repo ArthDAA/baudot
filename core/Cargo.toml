@@ -1,0 +1,11 @@
+[package]
+name = "omnikey-core"
+version = "0.2.0"
+edition = "2021"
+description = "Omnikey v0.2 - machine à états, protocole Baudot et profils, sans dépendance OS"
+
+[lib]
+name = "omnikey_core"
+path = "src/lib.rs"
+
+[dependencies]

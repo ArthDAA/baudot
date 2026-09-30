@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capacités des fenêtres HUD et Paramètres",
+  "windows": ["hud", "settings"],
+  "permissions": ["core:default", "dialog:default"]
+}

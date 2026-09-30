@@ -1,0 +1,21 @@
+--- a/keyboards/keychron/common/keychron_raw_hid.c
++++ b/keyboards/keychron/common/keychron_raw_hid.c
+@@ -85,6 +85,9 @@
+ 
+ __attribute__((weak)) void kc_rgb_matrix_rx(uint8_t *data, uint8_t length) {}
+ 
++// Omnikey "Var" : commandes non reconnues par Keychron (préfixe 0xBD).
++__attribute__((weak)) bool kc_raw_hid_rx_user(uint8_t *data, uint8_t length) { return false; }
++
+ bool kc_raw_hid_rx(uint8_t *data, uint8_t length) {
+     switch (data[0]) {
+         case KC_GET_PROTOCOL_VERSION:
+@@ -185,7 +188,7 @@
+ 
+ #endif
+         default:
+-            return false;
++            return kc_raw_hid_rx_user(data, length);
+     }
+ 
+     raw_hid_send(data, length);
