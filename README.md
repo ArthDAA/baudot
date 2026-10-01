@@ -111,6 +111,10 @@ e = É, È, Ê, Ë
 - **Variantes** : séparées par des virgules. Seul le 1er caractère de chaque variante compte.
 - `◌` en tête d'une variante sert à écrire une diacritique combinante seule (`◌̄`). Il est
   ignoré, et la marque déclenche le mode Dead Keys.
+- **Diacritiques natives sur les chiffres** : chaque langue propose aussi ses propres accents en
+  mode Dead Keys (Var + chiffre, relâcher, puis la lettre), un par touche à partir de `1`, du plus
+  fréquent au moins fréquent dans la langue (français : `1` aigu, `2` grave, `3` circonflexe,
+  `4` cédille, `5` tréma). Pinyin et vietnamien ont leur propre schéma.
 - `*` en fin de variante (dans `perso.conf`) marque une variante venant de la langue chargée.
   C'est ce qui permet de la remplacer quand on change de langue, sans toucher aux ajouts
   personnels.

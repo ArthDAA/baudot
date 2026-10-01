@@ -97,3 +97,11 @@
 - Conservés : noms de langues en endonymes ; messages du terminal de développement ; documentation interne en français.
 - Vérifié : 33 tests du Core verts, backend compilé sans avertissement, vérification TypeScript OK. Non vérifié : relecture visuelle de l'interface.
 - HUD collé en haut (30 sept. 2026) : la fenêtre HUD était placée 32 px sous le haut de l'écran, en plus des 32 px de marge de `.hud-anchor` (place de l'ombre). Fenêtre désormais au bord supérieur du moniteur actif (`position_hud`) ; marge CSS inchangée, l'île est donc 32 px plus haut. Compilé ; rendu à vérifier par Arthus.
+
+## Hors étapes - Diacritiques natives sur les chiffres (30 sept. 2026, D1 AM14)
+
+- 36 profils complétés (tous sauf pinyin, vietnamien, anglais), **section `min:` uniquement** (Var + chiffre sans Maj ; décision d'Arthus, les copies en `maj:` ont été retirées) : une diacritique combinante par touche à partir de 1, dans l'ordre de fréquence dans les textes de la langue (ordre fixé langue par langue dans le script de génération, d'après les fréquences de lettres usuelles). Variantes existantes conservées ; seuls les accents déjà utilisés par la langue sont proposés.
+- Premier essai par familles d'accents (1 aigu, 2 grave, 3 chapeaux, 4 autres au-dessus, 5 en dessous, identique pour toutes les langues) : écarté par Arthus, profils restaurés depuis git avant d'appliquer l'ordre par importance.
+- Ordres les moins sûrs, à faire valider par un locuteur : guarani (tilde avant aigu), haoussa (accents de ton, absents de l'orthographe courante), catalan (aigu et grave très proches), polonais (aigu et ogonek très proches).
+- `perso.conf` (modèle livré, ancien format à zones) : accents placés dans la zone « langue » de `min:`, donc marqués `*` à la conversion et remplacés au prochain chargement de langue ; `maj:` inchangée (`4 = €, ¥, ₿`). Test : `core/tests/perso_seed.rs`.
+- Banque de caractères régénérée. 34 tests verts. Un `perso.conf` existant ne reçoit les accents qu'au prochain chargement de langue.
