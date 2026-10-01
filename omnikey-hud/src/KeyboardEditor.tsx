@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { motion, AnimatePresence } from "framer-motion";
-import { displayGlyph, isCombiningMark } from "./AccentHUD";
+import { displayGlyph, isMarkVariant } from "./AccentHUD";
 import { KEYBOARD_ROWS, UNIT_PX, ROW_GAP_PX, keyWidth, shiftedLabel, type KeyDef } from "./keyboardLayout";
 import {
   TILE_DRAG_OVER_EVENT,
@@ -747,7 +747,7 @@ export function KeyboardEditor() {
                       data-char={t.variant.char}
                       className={
                         "kbd-tile" +
-                        (isCombiningMark(t.variant.char) ? " kbd-tile-orange" : " kbd-tile-blue") +
+                        (isMarkVariant(t.variant.char) ? " kbd-tile-orange" : " kbd-tile-blue") +
                         (isLanding ? " kbd-tile-landing" : "")
                       }
                       style={{ pointerEvents: isDragging ? "none" : undefined }}
@@ -819,7 +819,7 @@ export function KeyboardEditor() {
             layoutId={DRAG_LAYOUT_ID}
             className={
               "kbd-tile kbd-tile-proxy " +
-              (isCombiningMark(proxy.char) ? "kbd-tile-orange" : "kbd-tile-blue")
+              (isMarkVariant(proxy.char) ? "kbd-tile-orange" : "kbd-tile-blue")
             }
             style={{
               position: "fixed",

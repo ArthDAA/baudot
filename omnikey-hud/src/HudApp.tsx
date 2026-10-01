@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { AccentHUD, DOTTED_CIRCLE, isCombiningMark, type HudState, type ReminderKey } from "./AccentHUD";
-import { shiftedLabel } from "./keyboardLayout";
+import { KEYBOARD_ROWS, shiftedLabel } from "./keyboardLayout";
 
 // Miroir minimal de PersoConfData/PersoEntry/Variant (src-tauri/main.rs) —
 // le HUD n'a besoin que de lire, jamais d'éditer : pas de raison de
@@ -27,10 +27,16 @@ function markPortion(v: string): string | null {
 // combinante — le "1" de min: et le "!" que la même touche physique
 // représente sous Maj (via shiftedLabel, même correspondance que
 // KeyboardEditor.tsx) apparaissent donc comme deux rappels distincts.
+// Ordre physique des touches (gauche à droite, haut en bas) : le rappel suit
+// le clavier, pas l'ordre des lignes de perso.conf, qui change dès qu'on
+// déplace une variante dans l'éditeur.
+const KEY_ORDER = new Map(KEYBOARD_ROWS.flatMap((row) => row.keys).map((k, i) => [k.key, i]));
+const keyRank = (key: string) => KEY_ORDER.get(key) ?? Number.MAX_SAFE_INTEGER;
+
 function buildReminderKeys(data: PersoConfData): ReminderKey[] {
   const out: ReminderKey[] = [];
   const collect = (entries: PersoEntry[], section: "min" | "maj") => {
-    for (const e of entries) {
+    for (const e of [...entries].sort((a, b) => keyRank(a.key) - keyRank(b.key))) {
       const marks = e.variants.map((v) => markPortion(v.char)).filter((m): m is string => m !== null);
       if (marks.length === 0) continue;
       out.push({

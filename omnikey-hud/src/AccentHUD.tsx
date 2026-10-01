@@ -43,6 +43,12 @@ export function isCombiningMark(v: string): boolean {
   );
 }
 
+// Variante qui est une marque seule, qu'elle soit stockée nue ("̄", déposée
+// depuis la banque) ou précédée du cercle pointillé des .conf ("◌̄").
+export function isMarkVariant(v: string): boolean {
+  return isCombiningMark(v.startsWith(DOTTED_CIRCLE) ? v.slice(DOTTED_CIRCLE.length) : v);
+}
+
 export function displayGlyph(v: string): string {
   return isCombiningMark(v) ? DOTTED_CIRCLE + v : v;
 }

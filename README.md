@@ -114,7 +114,7 @@ e = É, È, Ê, Ë
 - **Diacritiques natives sur les chiffres** : chaque langue propose aussi ses propres accents en
   mode Dead Keys (Var + chiffre, relâcher, puis la lettre), un par touche à partir de `1`, du plus
   fréquent au moins fréquent dans la langue (français : `1` aigu, `2` grave, `3` circonflexe,
-  `4` cédille, `5` tréma). Pinyin et vietnamien ont leur propre schéma.
+  `4` tréma, `5` cédille). Pinyin et vietnamien ont leur propre schéma.
 - `*` en fin de variante (dans `perso.conf`) marque une variante venant de la langue chargée.
   C'est ce qui permet de la remplacer quand on change de langue, sans toucher aux ajouts
   personnels.

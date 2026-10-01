@@ -112,3 +112,10 @@
 - Corrigé : un build de développement (`debug_assertions`) ne touche plus jamais au démarrage automatique ; un build installé recale l'entrée sur son propre exécutable si elle pointe ailleurs (`repair_autostart_path`).
 - Sur le poste d'Arthus : entrée recalée à la main sur l'app installée ; supprimés `target\debug\omnikey-hud.exe` et deux copies du moteur v0.1 (`target\debug\binaries\lockfree_core.exe`, `lockfree_core\target\release\lockfree_core.exe`).
 - Installeur recompilé (toujours 0.2.0, contenu différent de la release v0.2.0 publiée : diacritiques et ce correctif).
+
+## Hors étapes - Corrections signalées par Arthus (1er oct. 2026)
+
+- Français (et modèle Custom) : tréma sur 4, cédille sur 5 (choix d'Arthus, au lieu de l'ordre de fréquence strict).
+- Rappel des diacritiques du HUD affiché dans le désordre (« 1 2 3 5 4 ») après avoir échangé deux accents dans l'éditeur : la barre suivait l'ordre des lignes de `perso.conf`. Elle suit maintenant l'ordre physique des touches (`HudApp.tsx`, `KEYBOARD_ROWS`).
+- Accents chargés depuis une langue affichés en bleu au lieu d'orange dans l'éditeur de clavier : stockés avec le cercle pointillé (`◌́`), ils échouaient au test « marque combinante », qui ne regardait que le premier caractère. Nouveau `isMarkVariant` (`AccentHUD.tsx`), qui retire le cercle avant de tester, utilisé par l'éditeur. Défaut hérité de v0.1 (le pinyin était touché aussi).
+- Vérifié : TypeScript OK, 34 tests verts. Non vérifié à l'écran.
