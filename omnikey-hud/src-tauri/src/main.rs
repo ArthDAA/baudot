@@ -41,6 +41,12 @@ const OMNIKEY_KEY: &str = r"Software\Lockfree\Omnikey";
 const THEME_VALUE: &str = "Theme";
 const PROFILE_VALUE: &str = "Profile";
 const ACCENT_REMINDER_VALUE: &str = "AccentReminder";
+// Taille de la bulle du HUD, en pourcentage de la taille d'origine.
+const HUD_SCALE_VALUE: &str = "HudScale";
+const HUD_SCALE_MIN: u32 = 100;
+const HUD_SCALE_MAX: u32 = 150;
+// Taille d'origine de la fenêtre HUD (tauri.conf.json), en pixels logiques.
+const HUD_BASE_SIZE: (f64, f64) = (1000.0, 220.0);
 const LANGUAGE_LABEL_WITH_ACCENTS_VALUE: &str = "LanguageLabelWithAccents";
 const PERSONALIZE_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 
@@ -76,6 +82,9 @@ struct EngineState {
     // `var_keyboard` dit si un clavier Var parle en ce moment.
     core: Mutex<Option<omnikey_core::Engine>>,
     var_keyboard: AtomicBool,
+    // Aperçu de la bulle pendant le réglage de sa taille : seul le dernier
+    // aperçu programmé referme la bulle.
+    hud_preview_gen: AtomicU64,
 }
 
 #[derive(Clone, Serialize)]
@@ -1231,6 +1240,74 @@ fn write_accent_reminder_preference(enabled: bool) -> Result<(), String> {
         .map_err(|e| format!("Cannot write to the registry: {e}"))
 }
 
+// ---------------------------------------------------------------------------
+// Taille de la bulle : zoom de la fenêtre HUD (tout grossit d'un bloc, rendu
+// inchangé) et fenêtre agrandie d'autant pour ne rien couper.
+// ---------------------------------------------------------------------------
+
+fn read_hud_scale() -> u32 {
+    winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
+        .open_subkey(OMNIKEY_KEY)
+        .and_then(|k| k.get_value::<u32, _>(HUD_SCALE_VALUE))
+        .map(|v| v.clamp(HUD_SCALE_MIN, HUD_SCALE_MAX))
+        .unwrap_or(HUD_SCALE_MIN)
+}
+
+fn write_hud_scale(percent: u32) -> Result<(), String> {
+    let (key, _) = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
+        .create_subkey(OMNIKEY_KEY)
+        .map_err(|e| format!("Registry not accessible: {e}"))?;
+    key.set_value(HUD_SCALE_VALUE, &percent)
+        .map_err(|e| format!("Cannot write to the registry: {e}"))
+}
+
+fn apply_hud_scale(app: &AppHandle, percent: u32) {
+    let Some(hud) = app.get_webview_window("hud") else { return };
+    let scale = percent as f64 / 100.0;
+    let _ = hud.set_size(tauri::LogicalSize::new(HUD_BASE_SIZE.0 * scale, HUD_BASE_SIZE.1 * scale));
+    let _ = hud.set_zoom(scale);
+}
+
+// Montre la bulle un instant à sa nouvelle taille, sauf si un vrai geste Var
+// est en cours (on ne touche jamais au HUD pendant une saisie).
+fn preview_hud(app: &AppHandle) {
+    let idle = |app: &AppHandle| {
+        let state = app.state::<EngineState>();
+        let core = state.core.lock().unwrap();
+        core.as_ref().map_or(true, |e| e.machine().state() == omnikey_core::machine::State::Idle)
+    };
+    if !idle(app) {
+        return;
+    }
+    let state = app.state::<EngineState>();
+    let gen = state.hud_preview_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    position_hud(app);
+    let language = state.language.lock().unwrap().clone();
+    emit_hud(app, HudEvent::Held { language });
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(1200));
+        let state = app.state::<EngineState>();
+        if state.hud_preview_gen.load(Ordering::SeqCst) == gen && idle(&app) {
+            emit_hud(&app, HudEvent::Hide);
+        }
+    });
+}
+
+#[tauri::command]
+fn get_hud_scale() -> u32 {
+    read_hud_scale()
+}
+
+#[tauri::command]
+fn set_hud_scale(app: AppHandle, percent: u32) -> Result<(), String> {
+    let percent = percent.clamp(HUD_SCALE_MIN, HUD_SCALE_MAX);
+    write_hud_scale(percent)?;
+    apply_hud_scale(&app, percent);
+    preview_hud(&app);
+    Ok(())
+}
+
 // Affichage du nom de langue (pastille "waiting") quand le rappel
 // diacritiques est déjà visible pour cette langue — activé par défaut (même
 // logique unwrap_or(true) que ci-dessus). N'a aucun effet quand il n'y a
@@ -1596,6 +1673,8 @@ fn main() {
             set_theme_preference,
             get_accent_reminder_enabled,
             set_accent_reminder_enabled,
+            get_hud_scale,
+            set_hud_scale,
             get_language_label_with_accents_enabled,
             set_language_label_with_accents_enabled,
             quit_app,
@@ -1612,6 +1691,7 @@ fn main() {
             if let Some(hud) = app.get_webview_window("hud") {
                 let _ = hud.set_ignore_cursor_events(true);
             }
+            apply_hud_scale(app.handle(), read_hud_scale());
 
             *handle.state::<EngineState>().theme_pref.lock().unwrap() = read_theme_preference();
 

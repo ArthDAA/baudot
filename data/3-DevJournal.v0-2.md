@@ -119,3 +119,10 @@
 - Rappel des diacritiques du HUD affiché dans le désordre (« 1 2 3 5 4 ») après avoir échangé deux accents dans l'éditeur : la barre suivait l'ordre des lignes de `perso.conf`. Elle suit maintenant l'ordre physique des touches (`HudApp.tsx`, `KEYBOARD_ROWS`).
 - Accents chargés depuis une langue affichés en bleu au lieu d'orange dans l'éditeur de clavier : stockés avec le cercle pointillé (`◌́`), ils échouaient au test « marque combinante », qui ne regardait que le premier caractère. Nouveau `isMarkVariant` (`AccentHUD.tsx`), qui retire le cercle avant de tester, utilisé par l'éditeur. Défaut hérité de v0.1 (le pinyin était touché aussi).
 - Vérifié : TypeScript OK, 34 tests verts. Non vérifié à l'écran.
+
+## Hors étapes - Taille de la bulle réglable (1er oct. 2026)
+
+- Réglage « Bubble size » dans la configuration : curseur de 100 % (taille d'origine, minimum) à 150 %, par pas de 5 %, mémorisé dans le registre (`HudScale`).
+- Rendu : zoom natif de la fenêtre HUD (`set_zoom`) et fenêtre agrandie dans la même proportion (1000 × 220 à 100 %). Le dessin de la bulle n'est pas modifié : tout grossit d'un bloc (textes, marges, ombre, animations). Appliqué au démarrage et à chaque cran.
+- Aperçu : à chaque cran, la bulle s'affiche 1,2 s à sa nouvelle taille, sauf si un geste Var est en cours (le HUD n'est jamais perturbé pendant une saisie).
+- Vérifié : compilation Rust sans avertissement, TypeScript OK. Non vérifié à l'écran.

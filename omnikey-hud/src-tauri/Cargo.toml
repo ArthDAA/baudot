@@ -1,6 +1,6 @@
 [package]
 name = "omnikey-hud"
-version = "0.2.2"
+version = "0.2.3"
 description = "Baudot Companion App - application des claviers Baudot (by Lockfree)"
 edition = "2021"
 

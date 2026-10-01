@@ -22,6 +22,7 @@ export function SettingsApp() {
   const [theme, setTheme] = useState<ThemePreference>("system");
   const [accentReminder, setAccentReminder] = useState(true);
   const [languageLabelWithAccents, setLanguageLabelWithAccents] = useState(true);
+  const [hudScale, setHudScale] = useState(100);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
@@ -29,6 +30,7 @@ export function SettingsApp() {
     setTheme(await invoke<ThemePreference>("get_theme_preference"));
     setAccentReminder(await invoke<boolean>("get_accent_reminder_enabled"));
     setLanguageLabelWithAccents(await invoke<boolean>("get_language_label_with_accents_enabled"));
+    setHudScale(await invoke<number>("get_hud_scale"));
   };
 
   useEffect(() => {
@@ -49,6 +51,17 @@ export function SettingsApp() {
     try {
       await invoke("set_theme_preference", { preference });
       setTheme(preference);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  // Appliquée à chaque cran : la bulle s'affiche un instant à sa nouvelle
+  // taille (aperçu côté backend), sans attendre de relâcher le curseur.
+  const changeHudScale = async (percent: number) => {
+    setHudScale(percent);
+    try {
+      await invoke("set_hud_scale", { percent });
     } catch (e) {
       setError(String(e));
     }
@@ -100,6 +113,22 @@ export function SettingsApp() {
               {THEME_LABELS[pref]}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="settings-row">
+        <p className="settings-label">Bubble size</p>
+        <div className="size-slider">
+          <input
+            type="range"
+            min={100}
+            max={150}
+            step={5}
+            value={hudScale}
+            onChange={(e) => changeHudScale(Number(e.target.value))}
+            aria-label="Bubble size"
+          />
+          <span className="size-slider-value">{hudScale}%</span>
         </div>
       </div>
 
