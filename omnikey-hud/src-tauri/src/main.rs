@@ -1128,6 +1128,19 @@ fn autostart_enabled() -> bool {
         .is_ok()
 }
 
+// Démarrage automatique actif mais pointant vers un autre exécutable (build
+// de développement, ancienne installation) : on le recale sur celui-ci.
+fn repair_autostart_path() {
+    let current = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
+        .open_subkey(RUN_KEY)
+        .and_then(|k| k.get_value::<String, _>(APP_NAME));
+    if let (Ok(current), Some(expected)) = (current, autostart_command()) {
+        if current != expected {
+            let _ = set_autostart_registry(true);
+        }
+    }
+}
+
 // Démarrage automatique enregistré sous l'ancien nom : on le transfère sous
 // le nouveau (même réglage pour l'utilisateur, plus d'entrée orpheline).
 fn migrate_legacy_autostart() {
@@ -1607,10 +1620,17 @@ fn main() {
 
             // Parité avec ensure_startup_default_on() : au premier lancement
             // manuel, l'autostart est activé par défaut.
-            migrate_legacy_autostart();
-            if !launched_by_startup && !autostart_enabled() {
-                let _ = set_autostart_registry(true);
-                sync_autostart_menu(&handle, true);
+            // Un build de développement ne touche jamais au démarrage
+            // automatique : sinon `tauri dev` l'enregistre sur l'exe de debug,
+            // qui se relance ensuite à chaque démarrage de Windows à la place
+            // de l'app installée (et en plus d'elle : frappe en double).
+            if !cfg!(debug_assertions) {
+                migrate_legacy_autostart();
+                if !launched_by_startup && !autostart_enabled() {
+                    let _ = set_autostart_registry(true);
+                    sync_autostart_menu(&handle, true);
+                }
+                repair_autostart_path();
             }
 
             let Some(conf) = find_default_conf(&handle) else {

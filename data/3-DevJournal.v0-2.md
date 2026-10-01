@@ -105,3 +105,10 @@
 - Ordres les moins sûrs, à faire valider par un locuteur : guarani (tilde avant aigu), haoussa (accents de ton, absents de l'orthographe courante), catalan (aigu et grave très proches), polonais (aigu et ogonek très proches).
 - `perso.conf` (modèle livré, ancien format à zones) : accents placés dans la zone « langue » de `min:`, donc marqués `*` à la conversion et remplacés au prochain chargement de langue ; `maj:` inchangée (`4 = €, ¥, ₿`). Test : `core/tests/perso_seed.rs`.
 - Banque de caractères régénérée. 34 tests verts. Un `perso.conf` existant ne reçoit les accents qu'au prochain chargement de langue.
+
+## Hors étapes - Démarrage automatique détourné par le build de dev (1er oct. 2026)
+
+- Constaté chez Arthus : l'app 0.2.0 installée tournait, mais l'entrée de démarrage automatique (`HKCU\...\Run\Baudot Companion App`) pointait vers `target\debug\omnikey-hud.exe`. Cause : `tauri dev` avait enregistré le démarrage automatique au premier lancement ; l'app installée voyait l'entrée existante et ne vérifiait pas son chemin. Risque : à chaque démarrage de Windows, l'ancien build de dev se lance, et s'il tourne avec l'app installée, les deux lisent le clavier et écrivent en double.
+- Corrigé : un build de développement (`debug_assertions`) ne touche plus jamais au démarrage automatique ; un build installé recale l'entrée sur son propre exécutable si elle pointe ailleurs (`repair_autostart_path`).
+- Sur le poste d'Arthus : entrée recalée à la main sur l'app installée ; supprimés `target\debug\omnikey-hud.exe` et deux copies du moteur v0.1 (`target\debug\binaries\lockfree_core.exe`, `lockfree_core\target\release\lockfree_core.exe`).
+- Installeur recompilé (toujours 0.2.0, contenu différent de la release v0.2.0 publiée : diacritiques et ce correctif).
